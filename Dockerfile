@@ -29,7 +29,9 @@ RUN cd /app &&  \
     cd python && \
     pip3 install .
 
+# install other python dependencies
+RUN pip3 install pyjwt requests
+
 COPY wb_to_prepbufr.py wb_to_prepbufr.py
 
-ENTRYPOINT /bin/bash
 CMD python3 wb_to_prepbufr.py

@@ -8,7 +8,7 @@ For your convenience, we have provided a Dockerfile that installs the requisite 
 
 ```bash
 docker build -t to_prepbufr .
-docker run to_prepbufr
+docker run --env WB_CLIENT_ID --env WB_API_KEY to_prepbufr
 ```
 
 ## Installing dependencies, option 2: from source

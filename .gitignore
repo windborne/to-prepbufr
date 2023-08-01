@@ -1,4 +1,6 @@
 
 ncepbufr
+windborne_data_*.prepbufr
+
 .DS_STORE
 to_prepbufr.iml
