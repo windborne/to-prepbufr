@@ -32,6 +32,7 @@ RUN cd /app &&  \
 # install other python dependencies
 RUN pip3 install pyjwt requests
 
+COPY prepbufr_michael.table prepbufr_michael.table
 COPY wb_to_prepbufr.py wb_to_prepbufr.py
 
 CMD python3 wb_to_prepbufr.py

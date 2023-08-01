@@ -3,15 +3,22 @@
 This utility queries the [WindBorne API](https://windbornesystems.com/docs/api) and converts the files to prepbufr.
 While it works out of the box, we encourage you to adapt it to your needs.
 
-## Installing dependencies & , option 1: Docker
-For your convenience, we have provided a Dockerfile that installs the requisite dependencies 
+For both methods of running, you will need to set the environment variables `WB_CLIENT_ID` and `WB_API_KEY`.
+If you do not have these, you may request them by emailing data@windbornesystems.com.
+
+## Installing dependencies & running, option 1: Docker
+For your convenience, we have provided a Dockerfile that installs the requisite dependencies.
+To build and run it:
 
 ```bash
 docker build -t to_prepbufr .
-docker run --env WB_CLIENT_ID --env WB_API_KEY to_prepbufr
+docker run --env WB_CLIENT_ID --env WB_API_KEY -it to_prepbufr bash
+python3 wb_to_prepbufr.py
 ```
 
-## Installing dependencies, option 2: from source
+Note that, as it's in a docker container, it is isolated and you will not be able to access the output files from your normal shell.
+
+## Installing dependencies & running, option 2: from source
 
 As well as the NCEPLIBS-bufr lib described below, you will need the following other dependencies (which may well exist on your system):
 1. cmake (https://cmake.org/download/)
@@ -29,4 +36,7 @@ For the sake of convenience, they are summarized here as:
 5. `make install`
 6. Install the generated python package with `cd python && pip3 install .` (note that this is not described in the NCEPLIBS-bufr documentation, but is necessary nonetheless)  
 
-From here
+From here, you should be able to go back to wherever this repository lives and run:
+```bash
+python3 wb_to_prepbufr.py
+```
