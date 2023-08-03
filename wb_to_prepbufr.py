@@ -39,7 +39,6 @@ def wb_get_request(url):
 In this section, we have the core functions to convert data to prepbufr
 """
 
-BAD = -999999
 TBASI = 273.15
 TBASW = 273.15 + 100
 ESBASW = 101324.6
@@ -50,6 +49,8 @@ ESBASI = 610.71
 def gfssvp(temperature_celsius):
     """
     Calculate saturation vapor pressure with GFS formula
+    Note this is slightly different from other formulas you'll see
+    So, you may wish to replace this function, or to replace to relative humidity -> specific humidity calc entirely
     """
 
     temperature_kelvin = temperature_celsius + 273.15
@@ -78,57 +79,12 @@ def gfssvp(temperature_celsius):
     return es
 
 
-def svpw(temperature_celsius):
-    """
-    Calculates saturation vapor pressure over water
-    """
-
-    t = temperature_celsius + 273.15
-    # t /= 1000
-    h = [-0.58002206e4, 0.13914993e1, -0.48640239e-1, 0.41764768e-4, -0.14452093e-7, 0.65459673e1]
-    r = 0
-    for i in range(-1, 4):
-        r += h[i + 1] * t ** i
-    r += h[-1] * np.log(t)
-    return np.exp(r)
-
-
-def svpi(temperature_celsius):
-    """
-    Calculates saturation vapor pressure over ice
-    """
-
-    t = temperature_celsius + 273.15
-    h = [-0.56745359e4, 0.63925247e1, -0.96778430e-2, 0.62215701e-6, 0.20747825e-8, -0.94840240e-12, 0.41635019e1]
-    r = 0
-    for i in range(0, 6):
-        r += h[i] * t ** (i - 1)
-    r += h[-1] * np.log(t)
-    return np.exp(r)
-
-
-@np.vectorize
-def svp(temperature_celsius):
-    """
-    Calculates saturation vapor pressure
-    """
-
-    if temperature_celsius >= 0:
-        return svpw(temperature_celsius)
-    elif temperature_celsius <= -23:
-        return svpi(temperature_celsius)
-    else:
-        ei = svpi(temperature_celsius)
-        ew = svpw(temperature_celsius)
-        return ei + (ew - ei) * ((temperature_celsius - (-23)) / 23) ** 2
-
-
 def convert_to_prepbufr(data, output_file='export.prepbufr'):
     if len(data) == 0:
         print("No data provided; skipping")
         return
 
-    bufr = ncepbufr.open(output_file, 'w', table='prepbufr_michael.table')
+    bufr = ncepbufr.open(output_file, 'w', table='prepbufr_config.table')
 
     hdstr = 'SID XOB YOB DHR TYP ELV SAID T29 TSB'
     obstr = 'POB QOB TOB ZOB UOB VOB PWO MXGS HOVI CAT PRSS TDO PMO'
@@ -140,11 +96,7 @@ def convert_to_prepbufr(data, output_file='export.prepbufr'):
     int_date = start_date.year * 1000000 + start_date.month * 10000 + start_date.day * 100 + start_date.hour
     subset = 'ADPUPA'
 
-    # Joan TODO: a lot of places used to have np.float, which is now deprecated
-    # Verify it should be normal float instead as the docs suggest, rather than np.float64
-    np_float_dummy = float
-
-    hdr = bufr.missing_value * np.ones(len(hdstr.split()), np_float_dummy)
+    hdr = bufr.missing_value * np.ones(len(hdstr.split()), float)
 
     for i in range(len(data)):
         point = data[i]
@@ -166,13 +118,13 @@ def convert_to_prepbufr(data, output_file='export.prepbufr'):
 
         nlvl = 1
 
-        obs = bufr.missing_value * np.ones((len(obstr.split()), nlvl), np_float_dummy)
-        dr = bufr.missing_value * np.ones((len(drstr.split()), nlvl), np_float_dummy)
+        obs = bufr.missing_value * np.ones((len(obstr.split()), nlvl), float)
+        dr = bufr.missing_value * np.ones((len(drstr.split()), nlvl), float)
         dr[0] = hdr[1]
         dr[1] = hdr[2]
         dr[2] = hdr[3]
-        oer = bufr.missing_value * np.ones((len(oestr.split()), nlvl), np_float_dummy)
-        qcf = bufr.missing_value * np.ones((len(qcstr.split()), nlvl), np_float_dummy)
+        oer = bufr.missing_value * np.ones((len(oestr.split()), nlvl), float)
+        qcf = bufr.missing_value * np.ones((len(qcstr.split()), nlvl), float)
 
         if point['pressure'] is None:
             qcf[0, 0] = 31.
@@ -180,7 +132,7 @@ def convert_to_prepbufr(data, output_file='export.prepbufr'):
             obs[0, 0] = point['pressure']
             qcf[0, 0] = 1.
 
-        obs[3, 0] = point['altitude']  # Joan TODO: verify this should be gps altitude
+        obs[3, 0] = point['altitude']
         obs[4, 0] = point['speed_x']
         obs[5, 0] = point['speed_y']
         qcf[4, 0] = 1.
@@ -217,17 +169,18 @@ def convert_to_prepbufr(data, output_file='export.prepbufr'):
         # convert from relative humidity to specific humidity
         specific_humidity = None
         if point['temperature'] is not None and point['pressure'] is not None and point['humidity'] is not None:
+            point = {'altitude': 6791.21, 'humidity': 97.5297606332122, 'latitude': 55.37090461538461, 'longitude': 16.212832884615384, 'mission_name': 'W-696', 'pressure': 422.91500495374595, 'speed_x': 8.41, 'speed_y': 9.98, 'temperature': -24.819797888992383, 'timestamp': 1691082605}
             rdgas = 287.04
             rvgas = 461.50
             eps = rdgas / rvgas
 
-            es = gfssvp(point['temperature']) * min(1, max(0, point['humidity'] / 100. * svpw(point['temperature']) / svp(point['temperature'])))
-            qs = eps * es / (point['pressure'] - (1 - eps) * es)
+            es = gfssvp(point['temperature']) * min(1, max(0, point['humidity'] / 100.))
+            qs = eps * es / (point['pressure']*100.0 - (1 - eps) * es)
             newspec = qs
 
             spec = newspec
 
-            specific_humidity = spec * 1e6
+            specific_humidity = spec * 1e6  # in mg/kg
 
         if specific_humidity is not None:
             obs[1, 0] = specific_humidity
@@ -237,7 +190,7 @@ def convert_to_prepbufr(data, output_file='export.prepbufr'):
             qcf[1, 0] = 31.
 
         if point['temperature'] is not None:
-            obs[2, 0] = point['temperature']  # Joan TODO: verify this should be celsius
+            obs[2, 0] = point['temperature']
             oer[2, 0] = temperature_error
             qcf[2, 0] = 1.
         else:
@@ -261,11 +214,11 @@ In this section, we tie it all together, querying the WindBorne API and converti
 
 def main():
     """
-    Queries WindBorne API for data from the last day and converts it to prepbufr
+    Queries WindBorne API for data from the last three hours and converts it to prepbufr
     :return:
     """
-    since = int(datetime.datetime.utcnow().timestamp()) - 24 * 60 * 60
-    accumulated_observations = []
+    since = int(datetime.datetime.now().timestamp()) - 3 * 60 * 60
+    observations_by_mission = {}
 
     while True:
         # Note that we query superobservations, which are described here:
@@ -275,7 +228,11 @@ def main():
             f"https://sensor-data.windbornesystems.com/api/v1/super_observations.json?since={since}&include_mission_name=true")
 
         print(f"Fetched page with {len(observations_page['observations'])} observation(s)")
-        accumulated_observations.extend(observations_page['observations'])
+        for observation in observations_page['observations']:
+            if observation['mission_name'] not in observations_by_mission:
+                observations_by_mission[observation['mission_name']] = []
+
+            observations_by_mission[observation['mission_name']].append(observation)
 
         # if there's no new data, break
         if not observations_page['has_next_page']:
@@ -287,26 +244,30 @@ def main():
         # update since for the next request
         since = observations_page['next_since']
 
-    # make sure it's sorted
-    accumulated_observations.sort(key=lambda x: x['timestamp'])
+    if len(observations_by_mission) == 0:
+        print("No observations found")
+        return
 
-    # slice into 3 hour segments
-    start_index = 0
-    for i in range(len(accumulated_observations)):
-        if accumulated_observations[i]['timestamp'] - accumulated_observations[start_index]['timestamp'] > 3 * 60 * 60:
-            segment = accumulated_observations[start_index:i]
-            output_file = f"windborne_data_{segment[0]['timestamp']}.prepbufr"
+    for mission_name, accumulated_observations in observations_by_mission.items():
+        # make sure it's sorted
+        accumulated_observations.sort(key=lambda x: x['timestamp'])
 
-            print(f"Converting {len(segment)} observation(s) to prepbufr and saving as {output_file}")
-            convert_to_prepbufr(segment, output_file)
-            return
+        # slice into 3 hour segments
+        start_index = 0
+        for i in range(len(accumulated_observations)):
+            if accumulated_observations[i]['timestamp'] - accumulated_observations[start_index]['timestamp'] > 3 * 60 * 60:
+                segment = accumulated_observations[start_index:i]
+                output_file = f"windborne_data_{segment[0]['timestamp']}.prepbufr"
 
-            start_index = i
+                print(f"Converting {len(segment)} observation(s) to prepbufr and saving as {output_file}")
+                convert_to_prepbufr(segment, output_file)
 
-    segment = accumulated_observations[start_index:]
-    output_file = f"windborne_data_{segment[0]['timestamp']}.prepbufr"
-    print(f"Converting {len(segment)} observation(s) to prepbufr and saving as {output_file}")
-    convert_to_prepbufr(segment, output_file)
+                start_index = i
+
+        segment = accumulated_observations[start_index:]
+        output_file = f"windborne_data_{mission_name}_{segment[0]['timestamp']}.prepbufr"
+        print(f"Converting {len(segment)} observation(s) to prepbufr and saving as {output_file}")
+        convert_to_prepbufr(segment, output_file)
 
 
 if __name__ == '__main__':
