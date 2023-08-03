@@ -44,6 +44,10 @@ TBASW = 273.15 + 100
 ESBASW = 101324.6
 ESBASI = 610.71
 
+RDGAS = 287.04
+RVGAS = 461.50
+EPS = RDGAS / RVGAS
+
 
 @np.vectorize
 def gfssvp(temperature_celsius):
@@ -102,7 +106,6 @@ def convert_to_prepbufr(data, output_file='export.prepbufr'):
         point = data[i]
         delta_hours = (point['timestamp'] - data[0]['timestamp']) / 3600.0
 
-        assert abs(delta_hours) <= 3 + 1e-5  # do not allow more than 3 hours of data
         assert i == 0 or data[i - 1]['timestamp'] <= point['timestamp']  # do not allow out of order data
 
         hdr[:] = bufr.missing_value
@@ -170,12 +173,9 @@ def convert_to_prepbufr(data, output_file='export.prepbufr'):
         specific_humidity = None
         if point['temperature'] is not None and point['pressure'] is not None and point['humidity'] is not None:
             point = {'altitude': 6791.21, 'humidity': 97.5297606332122, 'latitude': 55.37090461538461, 'longitude': 16.212832884615384, 'mission_name': 'W-696', 'pressure': 422.91500495374595, 'speed_x': 8.41, 'speed_y': 9.98, 'temperature': -24.819797888992383, 'timestamp': 1691082605}
-            rdgas = 287.04
-            rvgas = 461.50
-            eps = rdgas / rvgas
 
             es = gfssvp(point['temperature']) * min(1, max(0, point['humidity'] / 100.))
-            qs = eps * es / (point['pressure']*100.0 - (1 - eps) * es)
+            qs = EPS * es / (point['pressure'] * 100.0 - (1 - EPS) * es)
             newspec = qs
 
             spec = newspec
@@ -211,13 +211,16 @@ def convert_to_prepbufr(data, output_file='export.prepbufr'):
 In this section, we tie it all together, querying the WindBorne API and converting it to prepbufr
 """
 
+BUCKET_HOURS = 3  # If an observation comes this many hours after another, it will go in a separate file
+FETCH_SINCE_HOURS = 3  # Converts data from this far into the past
+
 
 def main():
     """
-    Queries WindBorne API for data from the last three hours and converts it to prepbufr
+    Queries WindBorne API for data from the last FETCH_SINCE_HOURS hours and converts it to prepbufr
     :return:
     """
-    since = int(datetime.datetime.now().timestamp()) - 3 * 60 * 60
+    since = int(datetime.datetime.now().timestamp()) - FETCH_SINCE_HOURS * 60 * 60
     observations_by_mission = {}
 
     while True:
@@ -255,7 +258,7 @@ def main():
         # slice into 3 hour segments
         start_index = 0
         for i in range(len(accumulated_observations)):
-            if accumulated_observations[i]['timestamp'] - accumulated_observations[start_index]['timestamp'] > 3 * 60 * 60:
+            if accumulated_observations[i]['timestamp'] - accumulated_observations[start_index]['timestamp'] > BUCKET_HOURS * 60 * 60:
                 segment = accumulated_observations[start_index:i]
                 output_file = f"windborne_data_{segment[0]['timestamp']}.prepbufr"
 

@@ -40,3 +40,11 @@ From here, you should be able to go back to wherever this repository lives and r
 ```bash
 python3 wb_to_prepbufr.py
 ```
+
+## Assumptions
+This utility is designed to be adapted to specific applications.
+In the course of building it, we made several assumptions which may not be suited for your particular application, including:
+- The formula for converting relative humidity to specific humidity. It uses formulas from GFS, which differ from formulas you may see elsewhere (eg metpy).
+- How it divides up data to put in different files. It splits by balloon and by time period, such that a single file won't have more than three hours of data nor data from different balloon flights. It may make sense in some cases to reduce this time period.
+- How much data it fetches from the WindBorne API. It is currently set to process only the last three hours of data and not to continue polling for more.
+- The bufr codes: it currently uses 132 for temperature and humidity, and 232 for pressure and winds, corresponding to ADPUPA. Alternative codes made be better suited depending on the data assimilation setup.
