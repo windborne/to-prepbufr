@@ -136,8 +136,8 @@ def convert_to_prepbufr(data, output_file='export.prepbufr'):
             qcf[0, 0] = 1.
 
         obs[3, 0] = point['altitude']
-        obs[4, 0] = point['speed_x']
-        obs[5, 0] = point['speed_y']
+        obs[4, 0] = point['speed_u']
+        obs[5, 0] = point['speed_v']
         qcf[4, 0] = 1.
         qcf[3, 0] = 1.
         qcf[1, 0] = 31.
