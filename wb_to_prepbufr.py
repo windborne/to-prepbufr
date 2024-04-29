@@ -5,6 +5,7 @@ import numpy as np
 import jwt
 import requests
 import ncepbufr
+import argparse
 
 """
 In this section, we define the helper functions to access the WindBorne API
@@ -34,6 +35,110 @@ def wb_get_request(url):
     # return the response body
     return response.json()
 
+"""
+These are the observation error values for radiosondes that were taken 
+from NCEP'S GSI data tables.  
+
+The first table has error values for the thermodynamics (P, T, RH)
+column 1: pressure level (hPa),
+column 2: temperature error (K),
+column 3: RH error (tens of %, so, 0.20E+01 is 20%)
+other columns: irrelevant
+"""
+error_thermo_str = """
+  0.11000E+04 0.12000E+01 0.20000E+01 0.10000E+10 0.11000E+01 0.10000E+10
+  0.10500E+04 0.12000E+01 0.20000E+01 0.10000E+10 0.11000E+01 0.10000E+10
+  0.10000E+04 0.12000E+01 0.20000E+01 0.10000E+10 0.11000E+01 0.10000E+10
+  0.95000E+03 0.11000E+01 0.20000E+01 0.10000E+10 0.11000E+01 0.10000E+10
+  0.90000E+03 0.90000E+00 0.20000E+01 0.10000E+10 0.11000E+01 0.10000E+10
+  0.85000E+03 0.80000E+00 0.20000E+01 0.10000E+10 0.11000E+01 0.10000E+10
+  0.80000E+03 0.80000E+00 0.20000E+01 0.10000E+10 0.11000E+01 0.10000E+10
+  0.75000E+03 0.80000E+00 0.20000E+01 0.10000E+10 0.12000E+01 0.10000E+10
+  0.70000E+03 0.80000E+00 0.20000E+01 0.10000E+10 0.12000E+01 0.10000E+10
+  0.65000E+03 0.80000E+00 0.20000E+01 0.10000E+10 0.12000E+01 0.10000E+10
+  0.60000E+03 0.80000E+00 0.20000E+01 0.10000E+10 0.12000E+01 0.10000E+10
+  0.55000E+03 0.80000E+00 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.50000E+03 0.80000E+00 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.45000E+03 0.80000E+00 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.40000E+03 0.80000E+00 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.35000E+03 0.80000E+00 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.30000E+03 0.90000E+00 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.25000E+03 0.12000E+01 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.20000E+03 0.12000E+01 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.15000E+03 0.10000E+01 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.10000E+03 0.80000E+00 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.75000E+02 0.80000E+00 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.50000E+02 0.90000E+00 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.40000E+02 0.95000E+00 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.30000E+02 0.10000E+01 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.20000E+02 0.12500E+01 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.10000E+02 0.15000E+01 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.50000E+01 0.15000E+01 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.40000E+01 0.15000E+01 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.30000E+01 0.15000E+01 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.20000E+01 0.15000E+01 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.10000E+01 0.15000E+01 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10
+  0.00000E+00 0.15000E+01 0.20000E+01 0.10000E+10 0.10000E+10 0.10000E+10"""
+
+"""
+These are the errors for winds:
+column 1: Pressure (hPa)
+column 4: Wind Error (m/s)
+columns 2-3, 5-6: Irrelevant
+"""
+error_winds_str = """
+  0.11000E+04 0.10000E+10 0.10000E+10 0.14000E+01 0.10000E+10 0.10000E+10
+  0.10500E+04 0.10000E+10 0.10000E+10 0.14000E+01 0.10000E+10 0.10000E+10
+  0.10000E+04 0.10000E+10 0.10000E+10 0.14000E+01 0.10000E+10 0.10000E+10
+  0.95000E+03 0.10000E+10 0.10000E+10 0.15000E+01 0.10000E+10 0.10000E+10
+  0.90000E+03 0.10000E+10 0.10000E+10 0.15000E+01 0.10000E+10 0.10000E+10
+  0.85000E+03 0.10000E+10 0.10000E+10 0.15000E+01 0.10000E+10 0.10000E+10
+  0.80000E+03 0.10000E+10 0.10000E+10 0.16000E+01 0.10000E+10 0.10000E+10
+  0.75000E+03 0.10000E+10 0.10000E+10 0.16000E+01 0.10000E+10 0.10000E+10
+  0.70000E+03 0.10000E+10 0.10000E+10 0.16000E+01 0.10000E+10 0.10000E+10
+  0.65000E+03 0.10000E+10 0.10000E+10 0.18000E+01 0.10000E+10 0.10000E+10
+  0.60000E+03 0.10000E+10 0.10000E+10 0.19000E+01 0.10000E+10 0.10000E+10
+  0.55000E+03 0.10000E+10 0.10000E+10 0.20000E+01 0.10000E+10 0.10000E+10
+  0.50000E+03 0.10000E+10 0.10000E+10 0.21000E+01 0.10000E+10 0.10000E+10
+  0.45000E+03 0.10000E+10 0.10000E+10 0.23000E+01 0.10000E+10 0.10000E+10
+  0.40000E+03 0.10000E+10 0.10000E+10 0.26000E+01 0.10000E+10 0.10000E+10
+  0.35000E+03 0.10000E+10 0.10000E+10 0.28000E+01 0.10000E+10 0.10000E+10
+  0.30000E+03 0.10000E+10 0.10000E+10 0.30000E+01 0.10000E+10 0.10000E+10
+  0.25000E+03 0.10000E+10 0.10000E+10 0.32000E+01 0.10000E+10 0.10000E+10
+  0.20000E+03 0.10000E+10 0.10000E+10 0.27000E+01 0.10000E+10 0.10000E+10
+  0.15000E+03 0.10000E+10 0.10000E+10 0.24000E+01 0.10000E+10 0.10000E+10
+  0.10000E+03 0.10000E+10 0.10000E+10 0.21000E+01 0.10000E+10 0.10000E+10
+  0.75000E+02 0.10000E+10 0.10000E+10 0.21000E+01 0.10000E+10 0.10000E+10
+  0.50000E+02 0.10000E+10 0.10000E+10 0.21000E+01 0.10000E+10 0.10000E+10
+  0.40000E+02 0.10000E+10 0.10000E+10 0.21000E+01 0.10000E+10 0.10000E+10
+  0.30000E+02 0.10000E+10 0.10000E+10 0.21000E+01 0.10000E+10 0.10000E+10
+  0.20000E+02 0.10000E+10 0.10000E+10 0.21000E+01 0.10000E+10 0.10000E+10
+  0.10000E+02 0.10000E+10 0.10000E+10 0.21000E+01 0.10000E+10 0.10000E+10
+  0.50000E+01 0.10000E+10 0.10000E+10 0.21000E+01 0.10000E+10 0.10000E+10
+  0.40000E+01 0.10000E+10 0.10000E+10 0.21000E+01 0.10000E+10 0.10000E+10
+  0.30000E+01 0.10000E+10 0.10000E+10 0.21000E+01 0.10000E+10 0.10000E+10
+  0.20000E+01 0.10000E+10 0.10000E+10 0.21000E+01 0.10000E+10 0.10000E+10
+  0.10000E+01 0.10000E+10 0.10000E+10 0.21000E+01 0.10000E+10 0.10000E+10
+  0.00000E+00 0.10000E+10 0.10000E+10 0.21000E+01 0.10000E+10 0.10000E+10"""
+
+"""
+Some quick parsing here, in order to get the data into variables
+"""
+error_thermo_vals = np.fromstring(error_thermo_str, sep=' ')
+error_thermo_vals.shape = (len(error_thermo_vals)//6, 6)
+error_thermo_vals = np.flipud(error_thermo_vals)
+error_thermo = {}
+error_thermo["pressure"] = error_thermo_vals[:, 0]
+error_thermo["temp"] = error_thermo_vals[:, 1]
+error_thermo["rh"] = error_thermo_vals[:, 2] * 10
+
+error_winds_vals = np.fromstring(error_winds_str, sep=' ')
+error_winds_vals.shape = (len(error_winds_vals)//6, 6)
+error_winds_vals = np.flipud(error_winds_vals)
+error_winds = {}
+error_winds["pressure"] = error_winds_vals[:, 0]
+error_winds["speed"] = error_winds_vals[:, 3]
+assert (error_thermo["pressure"] == error_winds["pressure"]).all()
 
 """
 In this section, we have the core functions to convert data to prepbufr
@@ -83,9 +188,9 @@ def gfssvp(temperature_celsius):
     return es
 
 
-def convert_to_prepbufr(data, output_file='export.prepbufr'):
+def convert_to_prepbufr(data, reftime, output_file='export.prepbufr'):
     if len(data) == 0:
-        print("No data provided; skipping")
+        print("No data; skipping")
         return
 
     bufr = ncepbufr.open(output_file, 'w', table='prepbufr_config.table')
@@ -97,6 +202,7 @@ def convert_to_prepbufr(data, output_file='export.prepbufr'):
     oestr = 'POE QOE TOE NUL WOE NUL PWE'
 
     start_date = datetime.datetime.utcfromtimestamp(data[0]['timestamp'])
+    start_date = datetime.datetime.utcfromtimestamp(reftime)
     int_date = start_date.year * 1000000 + start_date.month * 10000 + start_date.day * 100 + start_date.hour
     subset = 'ADPUPA'
 
@@ -105,6 +211,7 @@ def convert_to_prepbufr(data, output_file='export.prepbufr'):
     for i in range(len(data)):
         point = data[i]
         delta_hours = (point['timestamp'] - data[0]['timestamp']) / 3600.0
+        delta_hours = (point['timestamp'] - reftime) / 3600.0
 
         assert i == 0 or data[i - 1]['timestamp'] <= point['timestamp']  # do not allow out of order data
 
@@ -143,12 +250,19 @@ def convert_to_prepbufr(data, output_file='export.prepbufr'):
         qcf[1, 0] = 31.
         qcf[2, 0] = 31.
 
-        # Right now, we simply hardcode these values to reasonable averages
-        # However, in the future we may calculate these ourselves
-        wind_x_error = 1.18
-        wind_y_error = 1.18
-        relative_humidity_error = 8.23
-        temperature_error = 0.83
+        # Set the error values using the input table data that is above.
+        if point["pressure"] == None:
+            # Just a quick estimate, close enough for error characteristics
+            if (point["altitude"] == None):
+                print("Warning: Found some data with no pressure or altitude, skipping.")
+            interp_pressure = 3.83325e-22 * (44330.7 - point["altitude"])**5.255799
+        else:
+            interp_pressure = point["pressure"]
+        wind_speed_error = np.interp(interp_pressure, error_winds["pressure"], error_winds["speed"])
+        wind_x_error = wind_speed_error
+        wind_y_error = wind_speed_error
+        relative_humidity_error = np.interp(interp_pressure, error_thermo["pressure"], error_thermo["rh"])
+        temperature_error = np.interp(interp_pressure, error_thermo["pressure"], error_thermo["temp"])
 
         oer[3, 0] = 4
         oer[4, 0] = max(wind_x_error, wind_y_error)
@@ -207,71 +321,115 @@ def convert_to_prepbufr(data, output_file='export.prepbufr'):
     bufr.close()
 
 
-"""
-In this section, we tie it all together, querying the WindBorne API and converting it to prepbufr
-"""
+def output_data(accumulated_observations, mission_name, starttime, bucket_hours):
+    accumulated_observations.sort(key=lambda x: x['timestamp'])
+    start_index = 0
+    curtime = starttime
+    for i in range(len(accumulated_observations)):
+        if accumulated_observations[i]['timestamp'] - curtime > bucket_hours * 60 * 60:
+            segment = accumulated_observations[start_index:i]
+            mt = datetime.datetime.utcfromtimestamp(curtime)+datetime.timedelta(hours=bucket_hours/2)
+            output_file = (f"WindBorne_%s_%04d-%02d-%02d_%02d:00_%dh.prepbufr" %
+                           (mission_name, mt.year, mt.month, mt.day, mt.hour, bucket_hours))
+            print(f"Converting {len(segment)} observation(s) to prepbufr and saving as {output_file}")
+            convert_to_prepbufr(segment, curtime + datetime.timedelta(hours=bucket_hours/2).seconds, output_file)
 
-BUCKET_HOURS = 3  # If an observation comes this many hours after another, it will go in a separate file
-FETCH_SINCE_HOURS = 3  # Converts data from this far into the past
+            start_index = i
+            curtime += datetime.timedelta(hours=bucket_hours).seconds
 
+    # Cover any extra data within the latest partial bucket
+    segment = accumulated_observations[start_index:]
+    mt = datetime.datetime.utcfromtimestamp(curtime) + datetime.timedelta(hours=bucket_hours / 2)
+    output_file = (f"WindBorne_%s_%04d-%02d-%02d_%02d:00_%dh.prepbufr" %
+                   (mission_name, mt.year, mt.month, mt.day, mt.hour, bucket_hours))
+    print(f"Converting {len(segment)} observation(s) to prepbufr and saving as {output_file}")
+    convert_to_prepbufr(segment, curtime + datetime.timedelta(hours=bucket_hours / 2).seconds, output_file)
 
 def main():
     """
-    Queries WindBorne API for data from the last FETCH_SINCE_HOURS hours and converts it to prepbufr
+    Queries WindBorne API for data from the input time range and converts it to prepbufr
     :return:
     """
-    since = int(datetime.datetime.now().timestamp()) - FETCH_SINCE_HOURS * 60 * 60
-    observations_by_mission = {}
 
-    while True:
+    parser = argparse.ArgumentParser(description="""
+    Retrieves WindBorne data and output to prep bufr format.
+    Outputs files that meet NCEP's prepbufr format.
+    
+    Files will be broken up into time buckets as specified by the --bucket_hours option, 
+    and the output file names will contain the time at the mid-point of the bucket. For 
+    example, if you are looking to have files centered on say, 00 UTC 29 April, the start time
+    should be 3 hours prior to 00 UTC, 21 UTC 28 April.
+    """, formatter_class=argparse.RawTextHelpFormatter)
+
+    parser.add_argument("times", nargs='+',
+                        help='Starting and ending times to retrieve obs.  Format: YY-mm-dd_HH:MM'
+                             'Ending time is optional, with current time used as default')
+    parser.add_argument('-b', '--bucket_hours', type=float, default=6.0,
+                        help='Number of hours of observations to accumulate into a file before opening the next file')
+    parser.add_argument('-s', '--split_by_mission', action='store_true')
+    args = parser.parse_args()
+
+    if (len(args.times) == 1):
+        starttime=int(datetime.datetime.strptime(args.times[0], '%Y-%m-%d_%H:%M').
+                   replace(tzinfo=datetime.timezone.utc).timestamp())
+        endtime=int(datetime.datetime.now().timestamp())
+    elif (len(args.times) == 2):
+        starttime=int(datetime.datetime.strptime(args.times[0], '%Y-%m-%d_%H:%M').
+                   replace(tzinfo=datetime.timezone.utc).timestamp())
+        endtime=int(datetime.datetime.strptime(args.times[1], '%Y-%m-%d_%H:%M').
+                 replace(tzinfo=datetime.timezone.utc).timestamp())
+    else:
+        print("error processing input args, one or two arguments are needed")
+        exit(1)
+
+    if (not "WB_CLIENT_ID" in os.environ) or (not "WB_API_KEY" in os.environ) :
+        print("  ERROR: You must set environment variables WB_CLIENT_ID and WB_API_KEY\n"
+              "  If you don't have a client ID or API key, please contact WindBorne.")
+        exit(1)
+
+    args = parser.parse_args()
+    bucket_hours = args.bucket_hours
+
+    observations_by_mission = {}
+    accumulated_observations = []
+    has_next_page = True
+    next_page = f"https://sensor-data.windbornesystems.com/api/v1/super_observations.json?min_time={starttime}&max_time={endtime}&include_mission_name=true"
+
+    while has_next_page:
         # Note that we query superobservations, which are described here:
         # https://windbornesystems.com/docs/api#super_observations
         # We find that for most NWP applications this leads to better performance than overwhelming with high-res data
-        observations_page = wb_get_request(
-            f"https://sensor-data.windbornesystems.com/api/v1/super_observations.json?since={since}&include_mission_name=true")
-
+        observations_page = wb_get_request(next_page)
+        has_next_page = observations_page["has_next_page"]
+        if (len(observations_page['observations']) == 0):
+            print("Could not find any observations for the input date range!!!!")
+        if has_next_page:
+            next_page = observations_page["next_page"]+"&include_mission_name=true&max_time={}".format(endtime)
         print(f"Fetched page with {len(observations_page['observations'])} observation(s)")
         for observation in observations_page['observations']:
-            if observation['mission_name'] not in observations_by_mission:
+            if 'mission_name' not in observation:
+                print("got an ob without a mission name???")
+                continue
+            elif observation['mission_name'] not in observations_by_mission:
                 observations_by_mission[observation['mission_name']] = []
 
             observations_by_mission[observation['mission_name']].append(observation)
+            accumulated_observations.append(observation)
 
-        # if there's no new data, break
-        if not observations_page['has_next_page']:
-            break
-
-            # alternatively, you could call `time.sleep(60)` and keep polling
+            # alternatively, you could call `time.sleep(60)` and keep polling here
             # (though you'd have to move where you were calling convert_to_prepbufr)
 
-        # update since for the next request
-        since = observations_page['next_since']
 
     if len(observations_by_mission) == 0:
         print("No observations found")
         return
 
-    for mission_name, accumulated_observations in observations_by_mission.items():
-        # make sure it's sorted
-        accumulated_observations.sort(key=lambda x: x['timestamp'])
-
-        # slice into 3 hour segments
-        start_index = 0
-        for i in range(len(accumulated_observations)):
-            if accumulated_observations[i]['timestamp'] - accumulated_observations[start_index]['timestamp'] > BUCKET_HOURS * 60 * 60:
-                segment = accumulated_observations[start_index:i]
-                output_file = f"windborne_data_{segment[0]['timestamp']}.prepbufr"
-
-                print(f"Converting {len(segment)} observation(s) to prepbufr and saving as {output_file}")
-                convert_to_prepbufr(segment, output_file)
-
-                start_index = i
-
-        segment = accumulated_observations[start_index:]
-        output_file = f"windborne_data_{mission_name}_{segment[0]['timestamp']}.prepbufr"
-        print(f"Converting {len(segment)} observation(s) to prepbufr and saving as {output_file}")
-        convert_to_prepbufr(segment, output_file)
-
+    if (not args.split_by_mission):
+        mission_name = 'all'
+        output_data(accumulated_observations, mission_name, starttime, bucket_hours)
+    else:
+        for mission_name, accumulated_observations in observations_by_mission.items():
+            output_data(accumulated_observations, mission_name, starttime, bucket_hours)
 
 if __name__ == '__main__':
     main()
