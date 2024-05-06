@@ -201,8 +201,7 @@ def convert_to_prepbufr(data, reftime, output_file='export.prepbufr'):
     qcstr = 'PQM QQM TQM ZQM WQM NUL PWQ PMQ'
     oestr = 'POE QOE TOE NUL WOE NUL PWE'
 
-    start_date = datetime.datetime.utcfromtimestamp(data[0]['timestamp'])
-    start_date = datetime.datetime.utcfromtimestamp(reftime)
+    start_date = datetime.datetime.fromtimestamp(reftime, tz=datetime.timezone.utc)
     int_date = start_date.year * 1000000 + start_date.month * 10000 + start_date.day * 100 + start_date.hour
     subset = 'ADPUPA'
 
@@ -328,7 +327,7 @@ def output_data(accumulated_observations, mission_name, starttime, bucket_hours)
     for i in range(len(accumulated_observations)):
         if accumulated_observations[i]['timestamp'] - curtime > bucket_hours * 60 * 60:
             segment = accumulated_observations[start_index:i]
-            mt = datetime.datetime.utcfromtimestamp(curtime)+datetime.timedelta(hours=bucket_hours/2)
+            mt = datetime.datetime.fromtimestamp(curtime, tz=datetime.timezone.utc)+datetime.timedelta(hours=bucket_hours/2)
             output_file = (f"WindBorne_%s_%04d-%02d-%02d_%02d:00_%dh.prepbufr" %
                            (mission_name, mt.year, mt.month, mt.day, mt.hour, bucket_hours))
             print(f"Converting {len(segment)} observation(s) to prepbufr and saving as {output_file}")
@@ -339,7 +338,7 @@ def output_data(accumulated_observations, mission_name, starttime, bucket_hours)
 
     # Cover any extra data within the latest partial bucket
     segment = accumulated_observations[start_index:]
-    mt = datetime.datetime.utcfromtimestamp(curtime) + datetime.timedelta(hours=bucket_hours / 2)
+    mt = datetime.datetime.fromtimestamp(curtime, tz=datetime.timezone.utc) + datetime.timedelta(hours=bucket_hours / 2)
     output_file = (f"WindBorne_%s_%04d-%02d-%02d_%02d:00_%dh.prepbufr" %
                    (mission_name, mt.year, mt.month, mt.day, mt.hour, bucket_hours))
     print(f"Converting {len(segment)} observation(s) to prepbufr and saving as {output_file}")
@@ -362,11 +361,12 @@ def main():
     """, formatter_class=argparse.RawTextHelpFormatter)
 
     parser.add_argument("times", nargs='+',
-                        help='Starting and ending times to retrieve obs.  Format: YY-mm-dd_HH:MM'
+                        help='Starting and ending times to retrieve obs.  Format: YY-mm-dd_HH:MM '
                              'Ending time is optional, with current time used as default')
     parser.add_argument('-b', '--bucket_hours', type=float, default=6.0,
                         help='Number of hours of observations to accumulate into a file before opening the next file')
-    parser.add_argument('-s', '--split_by_mission', action='store_true')
+    parser.add_argument('-c', '--combine_missions', action='store_true',
+                        help="If selected, all missions are combined in the same output file.")
     args = parser.parse_args()
 
     if (len(args.times) == 1):
@@ -424,7 +424,7 @@ def main():
         print("No observations found")
         return
 
-    if (not args.split_by_mission):
+    if (args.combine_missions):
         mission_name = 'all'
         output_data(accumulated_observations, mission_name, starttime, bucket_hours)
     else:
