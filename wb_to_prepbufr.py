@@ -285,7 +285,7 @@ def convert_to_prepbufr(data, reftime, output_file='export.prepbufr'):
         # convert from relative humidity to specific humidity
         specific_humidity = None
         if point['temperature'] is not None and point['pressure'] is not None and point['humidity'] is not None:
-            point = {'altitude': 6791.21, 'humidity': 97.5297606332122, 'latitude': 55.37090461538461, 'longitude': 16.212832884615384, 'mission_name': 'W-696', 'pressure': 422.91500495374595, 'speed_x': 8.41, 'speed_y': 9.98, 'temperature': -24.819797888992383, 'timestamp': 1691082605}
+            #point = {'altitude': 6791.21, 'humidity': 97.5297606332122, 'latitude': 55.37090461538461, 'longitude': 16.212832884615384, 'mission_name': 'W-696', 'pressure': 422.91500495374595, 'speed_x': 8.41, 'speed_y': 9.98, 'temperature': -24.819797888992383, 'timestamp': 1691082605}
 
             es = gfssvp(point['temperature']) * min(1, max(0, point['humidity'] / 100.))
             qs = EPS * es / (point['pressure'] * 100.0 - (1 - EPS) * es)
