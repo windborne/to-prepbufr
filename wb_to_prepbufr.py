@@ -322,6 +322,11 @@ def convert_to_prepbufr(data, reftime, output_file='export.prepbufr'):
     bufr.close()
 
 def convert_to_netcdf(data, curtime, bucket_hours ):
+    # This module outputs data in netcdf format for the WMO ISARRA program.  The output format is netcdf
+    #   and the style (variable names, file names, etc.) are described here:
+    #  https://github.com/synoptic/wmo-uasdc/tree/main/raw_uas_to_netCDF
+
+    # Mapping of WindBorne names to ISARRA names
     rename_dict = {
         'latitude' : 'lat',
         'longitude' : 'lon',
@@ -334,34 +339,37 @@ def convert_to_netcdf(data, curtime, bucket_hours ):
         'index' : 'obs',
     }
 
-    #ds = xr.DataArray(data, coords={'obs': range(0, len(data))})
+    # Put the data in a panda datafram in order to easily push to xarray then netcdf output
     df = pd.DataFrame(data)
     ds = xr.Dataset.from_dataframe(df)
 
-    #outdatestring = datetime.datetime.fromtimestamp(ds['timestamp'].data[0], tz=datetime.timezone.utc).strftime('%Y%m%d%H%M%S')
+    # Build the filename and save some variables for use later
     mt = datetime.datetime.fromtimestamp(curtime, tz=datetime.timezone.utc)
     outdatestring = mt.strftime('%Y%m%d%H%M%S')
-
     mission_name = ds['mission_name'].data[0]
-    output_file = 'USADC_999_0{}_{}Z.nc'.format(mission_name[2:6],outdatestring)
+    output_file = 'USADC_300_0{}_{}Z.nc'.format(mission_name[2:6],outdatestring)
 
-    # Derived quantities:
-    # humidity_mixing_ratio converted from specific humidity.  Need to convert specific humidity units from mg/kg to kg/kg
+    # Derived quantities calculated here:
+
+    # convert from specific humidity to humidity_mixing_ratio
     mg_to_kg = 1000000.
     if not all(x is None for x in ds['specific_humidity'].data):
         ds['humidity_mixing_ratio'] = (ds['specific_humidity'] / mg_to_kg) / (1 - (ds['specific_humidity'] / mg_to_kg))
     else:
         ds['humidity_mixing_ratio'] = ds['specific_humidity']
 
+    # Wind speed and direction from components
     ds['wind_speed'] = np.sqrt(ds['speed_u']*ds['speed_u'] + ds['speed_v']*ds['speed_v'])
     ds['wind_direction'] = np.mod(180 + (180 / np.pi) * np.arctan2(ds['speed_u'], ds['speed_v']), 360)
 
     ds['time'] = ds['timestamp'].astype(float)
     ds = ds.assign_coords(time=("time", ds['time'].data))
-    # Remove unnecessary stuff
+
+    # Now that calculations are done, remove variables not needed in the netcdf output
     ds = ds.drop_vars(['humidity', 'speed_u', 'speed_v', 'speed_x', 'speed_y', 'specific_humidity',
                        'timestamp', 'mission_name'])
 
+    # Rename the variables
     ds = ds.rename(rename_dict)
 
     # Adding attributes to variables in the xarray dataset
@@ -375,9 +383,6 @@ def convert_to_netcdf(data, curtime, bucket_hours ):
                             'processing_level': ''}
     ds['air_temperature'].attrs = {'units': 'Kelvin', 'long_name': 'Air Temperature', '_FillValue': float('nan'),
                                    'processing_level': ''}
-
-    # To do: Add humidity mixing ration, wind speed, wind direction
-
     ds['wind_speed'].attrs = {'units': 'm/s', 'long_name': 'Wind Speed', '_FillValue': float('nan'),
                               'processing_level': ''}
     ds['wind_direction'].attrs = {'units': 'degrees', 'long_name': 'Wind Direction', '_FillValue': float('nan'),
@@ -395,25 +400,33 @@ def convert_to_netcdf(data, curtime, bucket_hours ):
     # Add Global Attributes unique to Provider
     ds.attrs['platform_name'] = "WindBorne Global Sounding Balloon"
     ds.attrs['flight_id'] = mission_name
-    ds.attrs['site_terrain_elevation_height'] = -9999
+    ds.attrs['site_terrain_elevation_height'] = 'not applicable'
     ds.attrs['processing_level'] = "b1"
-
     ds.to_netcdf(output_file)
 
 def output_data(accumulated_observations, mission_name, starttime, bucket_hours, netcdf_output=False):
     accumulated_observations.sort(key=lambda x: x['timestamp'])
+
+    # Here, set the earliest time of data to be the first observation time, then set it to the most recent
+    #    start of a bucket increment.
+    # The reason to do this rather than using the input starttime, is because sometimes the data
+    #    doesn't start at the start time, and the underlying output would try to output data that doesn't exist
+    #
+    accumulated_observations.sort(key=lambda x: x['timestamp'])
+    earliest_time = accumulated_observations[0]['timestamp']
+    if (earliest_time < starttime):
+        print("WTF, how can we have gotten data from before the starttime?")
+    curtime = earliest_time - earliest_time % (bucket_hours * 60 * 60)
+
     start_index = 0
-    curtime = starttime
     for i in range(len(accumulated_observations)):
         if accumulated_observations[i]['timestamp'] - curtime > bucket_hours * 60 * 60:
             segment = accumulated_observations[start_index:i]
-            if (len(segment) == 0):
-                continue
             mt = datetime.datetime.fromtimestamp(curtime, tz=datetime.timezone.utc)+datetime.timedelta(hours=bucket_hours/2)
             output_file = (f"WindBorne_%s_%04d-%02d-%02d_%02d:00_%dh.prepbufr" %
                            (mission_name, mt.year, mt.month, mt.day, mt.hour, bucket_hours))
             if (netcdf_output):
-                print(f"Converting {len(segment)} observation(s) to prepbufr and saving as netcdf")
+                print(f"Converting {len(segment)} observation(s) and saving as netcdf")
                 convert_to_netcdf(segment, curtime, bucket_hours)
             else:
                 print(f"Converting {len(segment)} observation(s) to prepbufr and saving as {output_file}")
@@ -428,7 +441,7 @@ def output_data(accumulated_observations, mission_name, starttime, bucket_hours,
     output_file = (f"WindBorne_%s_%04d-%02d-%02d_%02d:00_%dh.prepbufr" %
                    (mission_name, mt.year, mt.month, mt.day, mt.hour, bucket_hours))
     if (netcdf_output):
-        print(f"Converting {len(segment)} observation(s) to prepbufr and saving as netcdf")
+        print(f"Converting {len(segment)} observation(s) and saving as netcdf")
         convert_to_netcdf(segment, curtime, bucket_hours)
     else:
         print(f"Converting {len(segment)} observation(s) to prepbufr and saving as {output_file}")
@@ -485,6 +498,10 @@ def main():
     observations_by_mission = {}
     accumulated_observations = []
     has_next_page = True
+
+    # This line here would just find W-1594, useful for testing/debugging
+    #next_page = f"https://sensor-data.windbornesystems.com/api/v1/super_observations.json?mission_id=c8108dd5-bcf5-45ec-be80-a1da5e382e99&min_time={starttime}&max_time={endtime}&include_mission_name=true"
+
     next_page = f"https://sensor-data.windbornesystems.com/api/v1/super_observations.json?min_time={starttime}&max_time={endtime}&include_mission_name=true"
     netcdf_output = args.netcdf_output
 
@@ -492,12 +509,13 @@ def main():
         # Note that we query superobservations, which are described here:
         # https://windbornesystems.com/docs/api#super_observations
         # We find that for most NWP applications this leads to better performance than overwhelming with high-res data
+        print(next_page)
         observations_page = wb_get_request(next_page)
         has_next_page = observations_page["has_next_page"]
         if (len(observations_page['observations']) == 0):
             print("Could not find any observations for the input date range!!!!")
         if has_next_page:
-            next_page = observations_page["next_page"]+"&include_mission_name=true&max_time={}".format(endtime)
+            next_page = observations_page["next_page"]+"&include_mission_name=true&min_time={}&max_time={}".format(starttime,endtime)
         print(f"Fetched page with {len(observations_page['observations'])} observation(s)")
         for observation in observations_page['observations']:
             if 'mission_name' not in observation:
@@ -522,7 +540,7 @@ def main():
         output_data(accumulated_observations, mission_name, starttime, bucket_hours)
     else:
         for mission_name, accumulated_observations in observations_by_mission.items():
-            output_data(accumulated_observations, mission_name, starttime, bucket_hours, netcdf_output)
+           output_data(accumulated_observations, mission_name, starttime, bucket_hours, netcdf_output)
 
 if __name__ == '__main__':
     main()
