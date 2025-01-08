@@ -31,7 +31,7 @@ Follow the instructions at [https://github.com/NOAA-EMC/NCEPLIBS-bufr](https://g
 For the sake of convenience, they are summarized here as:
 1. Download and untar https://github.com/NOAA-EMC/NCEPLIBS-bufr/archive/refs/tags/bufr_v12.0.0.tar.gz
 2. Enter that folder and `mkdir build && cd build`
-3. Prepare the makefile with python integrations enabled and installing to `/usr/local/bin` with `cmake -DCMAKE_INSTALL_PREFIX=/usr/local/bin/ -DENABLE_PYTHON=ON ..`
+3. Prepare the makefile with python integrations enabled and installing to `/usr/local` with `cmake -DCMAKE_INSTALL_PREFIX=/usr/local/ -DENABLE_PYTHON=ON ..`
 4. `make -j4`
 5. `make install`
 6. Install the generated python package with `cd python && pip3 install .` (note that this is not described in the NCEPLIBS-bufr documentation, but is necessary nonetheless)  
