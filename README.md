@@ -25,6 +25,7 @@ As well as the NCEPLIBS-bufr lib described below, you will need the following ot
 2. python3 (https://www.python.org/downloads/)
 3. numpy (`pip3 install numpy`)
 4. gfortran (`apt install gfortran`)
+5. windborne (`pip3 install windborne`)
 
 With these in hand, you will need the NCEPLIBS-bufr lib. 
 Follow the instructions at [https://github.com/NOAA-EMC/NCEPLIBS-bufr](https://github.com/NOAA-EMC/NCEPLIBS-bufr), making sure to pass -DENABLE_PYTHON=ON. 
